@@ -2,15 +2,20 @@ name: Build - macOS
 
 on:
   workflow_call:
+    inputs:
+      NIGHTLY:
+        default: false
+        type: boolean
 
 jobs:
   build:
-    name: ${{ matrix.os }}
+    name: ${{ matrix.os }} - SQLCipher ${{ matrix.sqlcipher }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [macos-14]
+        sqlcipher: ["0", "1"]
     env:
       MACOSX_DEPLOYMENT_TARGET: 10.13
     steps:
@@ -36,8 +41,22 @@ jobs:
 
       - name: Configure build
         run: |
+          if [ "${{ inputs.NIGHTLY }}" = "true" ]; then
+            if [ "${{ matrix.sqlcipher }}" = "1" ]; then
+                sed -i "" 's/"DB Browser for SQLite"/"DB Browser for SQLCipher Nightly"/' config/platform_apple.cmake
+            else
+                sed -i "" 's/"DB Browser for SQLite"/"DB Browser for SQLite Nightly"/' config/platform_apple.cmake
+            fi
+          else
+            if [ "${{ matrix.sqlcipher }}" = "1" ]; then
+                sed -i "" 's/"DB Browser for SQLite"/"DB Browser for SQLCipher-dev-'$(git rev-parse --short --verify HEAD)'"/' config/platform_apple.cmake
+            else
+                sed -i "" 's/"DB Browser for SQLite"/"DB Browser for SQLite-dev-'$(git rev-parse --short --verify HEAD)'"/' config/platform_apple.cmake
+            fi
+          fi
+
           mkdir build && cd build
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DcustomTap=1 -DENABLE_TESTING=ON -Dsqlcipher=1 ..
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_STANDARD=14 -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DcustomTap=1 -DENABLE_TESTING=ON -Dsqlcipher=${{ matrix.sqlcipher }} ..
 
       - name: Build
         working-directory: ./build
@@ -62,6 +81,8 @@ jobs:
           KEYCHAIN_PW: ${{ secrets.MACOS_CODESIGN_KEYCHAIN_PW }}
           P12: ${{ secrets.MACOS_CODESIGN_P12 }}
           P12_PW: ${{ secrets.MACOS_CODESIGN_P12_PW }}
+          NIGHTLY: ${{ inputs.NIGHTLY }}
+          SQLCIPHER: ${{ matrix.sqlcipher }}
           TEAM_ID: ${{ secrets.MACOS_CODESIGN_TEAM_ID }}
 
       - if: steps.notarization.conclusion != 'skipped'
@@ -73,5 +94,5 @@ jobs:
         name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts-${{ matrix.os }}
+          name: build-artifacts-${{ matrix.os }}-${{ matrix.sqlcipher }}
           path: DB.Browser.for.*.dmg
