@@ -37,3 +37,15 @@ libs/*/*/*.a
 
 # Ignore .DS_Store files on OSX
 .DS_Store
+
+# New:
+.vs/
+Debug/
+libs/
+sqlitebrowser_autogen/
+*.vcxproj
+*.vcxproj.filters
+*.slnx
+CMakeCache.txt
+install_manifest.txt
+version.h
